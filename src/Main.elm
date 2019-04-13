@@ -8,10 +8,14 @@ import Html.Events exposing (..)
 import Http
 import Json.Decode exposing (Decoder, andThen, at, field, int, list, map4, maybe, string, succeed)
 import Json.Encode
-import Task
 import Time exposing (..)
 
 
+
+-- CONST
+
+
+myTimeZone : Int
 myTimeZone =
     2
 
@@ -137,7 +141,7 @@ update msg model =
         GotTimeEntries (Err _) ->
             ( { model | apiState = Failure }, Cmd.none )
 
-        StartedTimer (Ok entries) ->
+        StartedTimer (Ok _) ->
             let
                 newModel =
                     { model | timerState = Running }
@@ -147,7 +151,7 @@ update msg model =
         StartedTimer (Err _) ->
             ( model, Cmd.none )
 
-        StoppedTimer (Ok entries) ->
+        StoppedTimer (Ok _) ->
             let
                 newModel =
                     { model | timerState = Stopped }
@@ -163,7 +167,7 @@ update msg model =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
+subscriptions _ =
     Sub.batch
         [ Time.every 5000 RefreshAPI
         , Time.every 1000 Tick
