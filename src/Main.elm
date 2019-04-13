@@ -204,8 +204,10 @@ viewData model =
             div []
                 [ div [ class "bg-indigo-darker" ]
                     [ div [ class "container mx-auto text-center pt-20" ]
-                        [ h1 [ class "text-white font-normal text-5xl pb-5" ] [ text (todoTime model) ]
-                        , p [ class "text-white font-normal pb-5" ] [ text ("(" ++ workedTime model ++ ")") ]
+                        [ h1 [ class "text-white font-normal text-5xl pb-5" ]
+                            [ text (todoTime model) ]
+                        , p [ class "text-white font-normal pb-5" ]
+                            [ text ("(" ++ workedTime model ++ ")") ]
                         , viewToggleTimer model
                         ]
                     ]
@@ -213,7 +215,9 @@ viewData model =
                     [ div [ class "container mx-auto" ]
                         [ div [ class "flex justify-center" ]
                             [ div [ class "mt-16" ]
-                                [ table [ class "table" ] [ tbody [] (List.map (\entry -> viewEntry entry model) model.timeEntries |> List.reverse) ] ]
+                                [ table [ class "table" ]
+                                    [ tbody [] (List.map (\entry -> viewEntry entry model) model.timeEntries |> List.reverse) ]
+                                ]
                             ]
                         ]
                     ]
@@ -222,16 +226,20 @@ viewData model =
 
 viewToggleTimer : Model -> Html Msg
 viewToggleTimer model =
+    let
+        style =
+            "text-white font-bold rounded-full h-16 w-16 text-2xl -mb-12 shadow-lg"
+    in
     case model.timerState of
         Stopped ->
             div [ class "mt-5" ]
-                [ button [ onClick StartTimer, class "bg-green hover:bg-green-dark text-white font-bold rounded-full h-16 w-16 text-2xl -mb-12 shadow-lg" ]
+                [ button [ onClick StartTimer, class ("bg-green hover:bg-green-dark" ++ style) ]
                     [ span [ class "icon" ] [ i [ class "fas fa-play-circle" ] [] ] ]
                 ]
 
         Running ->
             div [ class "mt-5" ]
-                [ button [ onClick StopTimer, class "bg-red hover:bg-red-dark text-white font-bold rounded-full h-16 w-16 text-2xl -mb-12 shadow-lg" ]
+                [ button [ onClick StopTimer, class ("bg-red hover:bg-red-dark" ++ style) ]
                     [ span [ class "icon" ] [ i [ class "fas fa-pause-circle" ] [] ] ]
                 ]
 
