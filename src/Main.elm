@@ -19,9 +19,11 @@ myTimeZone : Int
 myTimeZone =
     2
 
+
 apiAuth : String
 apiAuth =
     "Basic ODUzYWViNDk2MTY2YTRjNzgxYTI3YzQ0YTU3ZTQ5NTc6YXBpX3Rva2Vu"
+
 
 
 -- MAIN
@@ -231,7 +233,7 @@ viewToggleTimer : Model -> Html Msg
 viewToggleTimer model =
     let
         style =
-            "text-white font-bold rounded-full h-16 w-16 text-2xl -mb-12 shadow-lg"
+            "font-bold rounded-full h-16 w-16 text-2xl -mb-12 shadow-lg text-white"
     in
     case model.timerState of
         Stopped ->
@@ -485,7 +487,7 @@ getTimeEntries model =
     Http.request
         { body = Http.emptyBody
         , method = "GET"
-        , headers = [ Http.header "Authorization" apiAuth]
+        , headers = [ Http.header "Authorization" apiAuth ]
         , url = model.apiEndpoint ++ getUrl (getDate model.time)
         , expect = Http.expectJson GotTimeEntries listOfRecordsDecoder
         , timeout = Nothing
