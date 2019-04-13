@@ -15,6 +15,7 @@ Elm.Main.init({
   node: document.getElementById('root'),
   flags: {
     apiEndpoint: apiEndpoint(),
+    apiAuth: process.env.ELM_APP_API_AUTH,
     time: Date.now()
   }
 });

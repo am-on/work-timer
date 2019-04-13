@@ -9,3 +9,6 @@ repl-temp-*
 
 # Dependency directories
 node_modules
+
+# Environment variables with secrets for local development
+.env
