@@ -20,11 +20,6 @@ myTimeZone =
     2
 
 
-apiAuth : String
-apiAuth =
-    "Basic ODUzYWViNDk2MTY2YTRjNzgxYTI3YzQ0YTU3ZTQ5NTc6YXBpX3Rva2Vu"
-
-
 
 -- MAIN
 
@@ -63,11 +58,13 @@ type alias Model =
     , timeEntries : TimeEntries
     , time : Time.Posix
     , apiEndpoint : String
+    , apiAuth : String
     }
 
 
 type alias Flags =
     { apiEndpoint : String
+    , apiAuth : String
     , time : Int
     }
 
@@ -98,6 +95,7 @@ init flags =
             , timeEntries = []
             , time = Time.millisToPosix flags.time
             , apiEndpoint = flags.apiEndpoint
+            , apiAuth = flags.apiAuth
             }
     in
     ( model, getTimeEntries model )
@@ -487,7 +485,7 @@ getTimeEntries model =
     Http.request
         { body = Http.emptyBody
         , method = "GET"
-        , headers = [ Http.header "Authorization" apiAuth ]
+        , headers = [ Http.header "Authorization" model.apiAuth ]
         , url = model.apiEndpoint ++ getUrl (getDate model.time)
         , expect = Http.expectJson GotTimeEntries listOfRecordsDecoder
         , timeout = Nothing
@@ -508,7 +506,7 @@ startTimer model =
                       )
                     ]
         , method = "POST"
-        , headers = [ Http.header "Authorization" apiAuth ]
+        , headers = [ Http.header "Authorization" model.apiAuth ]
         , url = model.apiEndpoint ++ "time_entries/start"
         , expect = Http.expectJson StartedTimer singleTimeEntryDecoder
         , timeout = Nothing
@@ -532,7 +530,7 @@ stopTimer model =
                 Http.request
                     { body = Http.emptyBody
                     , method = "PUT"
-                    , headers = [ Http.header "Authorization" apiAuth ]
+                    , headers = [ Http.header "Authorization" model.apiAuth ]
                     , url = model.apiEndpoint ++ "time_entries/" ++ String.fromInt timer.id ++ "/stop"
                     , expect = Http.expectJson StoppedTimer singleTimeEntryDecoder
                     , timeout = Nothing
