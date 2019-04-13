@@ -19,6 +19,9 @@ myTimeZone : Int
 myTimeZone =
     2
 
+apiAuth : String
+apiAuth =
+    "Basic ODUzYWViNDk2MTY2YTRjNzgxYTI3YzQ0YTU3ZTQ5NTc6YXBpX3Rva2Vu"
 
 
 -- MAIN
@@ -482,9 +485,7 @@ getTimeEntries model =
     Http.request
         { body = Http.emptyBody
         , method = "GET"
-        , headers =
-            [ Http.header "Authorization" "Basic ODUzYWViNDk2MTY2YTRjNzgxYTI3YzQ0YTU3ZTQ5NTc6YXBpX3Rva2Vu"
-            ]
+        , headers = [ Http.header "Authorization" apiAuth]
         , url = model.apiEndpoint ++ getUrl (getDate model.time)
         , expect = Http.expectJson GotTimeEntries listOfRecordsDecoder
         , timeout = Nothing
@@ -505,7 +506,7 @@ startTimer model =
                       )
                     ]
         , method = "POST"
-        , headers = [ Http.header "Authorization" "Basic ODUzYWViNDk2MTY2YTRjNzgxYTI3YzQ0YTU3ZTQ5NTc6YXBpX3Rva2Vu" ]
+        , headers = [ Http.header "Authorization" apiAuth ]
         , url = model.apiEndpoint ++ "time_entries/start"
         , expect = Http.expectJson StartedTimer singleTimeEntryDecoder
         , timeout = Nothing
@@ -529,9 +530,7 @@ stopTimer model =
                 Http.request
                     { body = Http.emptyBody
                     , method = "PUT"
-                    , headers =
-                        [ Http.header "Authorization" "Basic ODUzYWViNDk2MTY2YTRjNzgxYTI3YzQ0YTU3ZTQ5NTc6YXBpX3Rva2Vu"
-                        ]
+                    , headers = [ Http.header "Authorization" apiAuth ]
                     , url = model.apiEndpoint ++ "time_entries/" ++ String.fromInt timer.id ++ "/stop"
                     , expect = Http.expectJson StoppedTimer singleTimeEntryDecoder
                     , timeout = Nothing
