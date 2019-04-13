@@ -13,7 +13,10 @@ const apiEndpoint = () => {
 
 Elm.Main.init({
   node: document.getElementById('root'),
-  flags: {apiEndpoint: apiEndpoint()}
+  flags: {
+    apiEndpoint: apiEndpoint(),
+    time: Date.now()
+  }
 });
 
 registerServiceWorker();

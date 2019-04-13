@@ -40,7 +40,6 @@ type TimerState
 
 type ApiState
     = Failure
-    | Init
     | Loading
     | Success
 
@@ -57,9 +56,10 @@ type alias Model =
     , apiEndpoint : String
     }
 
+
 type alias Flags =
-    {
-        apiEndpoint : String
+    { apiEndpoint : String
+    , time : Int
     }
 
 
@@ -82,8 +82,16 @@ type alias DateTime =
 
 init : Flags -> ( Model, Cmd Msg )
 init flags =
-
-    ( { apiState = Init, timerState = Stopped, timeEntries = [], time = Time.millisToPosix 0, apiEndpoint = flags.apiEndpoint }, Cmd.none )
+    let
+        model =
+            { apiState = Loading
+            , timerState = Stopped
+            , timeEntries = []
+            , time = Time.millisToPosix flags.time
+            , apiEndpoint = flags.apiEndpoint
+            }
+    in
+    ( model, getTimeEntries model )
 
 
 
@@ -117,15 +125,7 @@ update msg model =
             ( model, getTimeEntries model )
 
         Tick time ->
-            let
-                newModel =
-                    { model | time = time }
-            in
-            if model.apiState == Init then
-                update Refresh newModel
-
-            else
-                ( newModel, Cmd.none )
+            ( { model | time = time }, Cmd.none )
 
         GotTimeEntries (Ok entries) ->
             let
@@ -195,9 +195,6 @@ viewData model =
 
         Loading ->
             text "Loading..."
-
-        Init ->
-            text "Init time"
 
         Success ->
             div []
@@ -474,8 +471,7 @@ getTimeEntries model =
         { body = Http.emptyBody
         , method = "GET"
         , headers =
-            [
-               Http.header "Authorization" "Basic ODUzYWViNDk2MTY2YTRjNzgxYTI3YzQ0YTU3ZTQ5NTc6YXBpX3Rva2Vu"
+            [ Http.header "Authorization" "Basic ODUzYWViNDk2MTY2YTRjNzgxYTI3YzQ0YTU3ZTQ5NTc6YXBpX3Rva2Vu"
             ]
         , url = model.apiEndpoint ++ getUrl (getDate model.time)
         , expect = Http.expectJson GotTimeEntries listOfRecordsDecoder
@@ -522,9 +518,8 @@ stopTimer model =
                     { body = Http.emptyBody
                     , method = "PUT"
                     , headers =
-                     [
-                        Http.header "Authorization" "Basic ODUzYWViNDk2MTY2YTRjNzgxYTI3YzQ0YTU3ZTQ5NTc6YXBpX3Rva2Vu"
-                     ]
+                        [ Http.header "Authorization" "Basic ODUzYWViNDk2MTY2YTRjNzgxYTI3YzQ0YTU3ZTQ5NTc6YXBpX3Rva2Vu"
+                        ]
                     , url = model.apiEndpoint ++ "time_entries/" ++ String.fromInt timer.id ++ "/stop"
                     , expect = Http.expectJson StoppedTimer singleTimeEntryDecoder
                     , timeout = Nothing
