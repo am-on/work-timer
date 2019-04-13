@@ -54,6 +54,12 @@ type alias Model =
     , timerState : TimerState
     , timeEntries : TimeEntries
     , time : Time.Posix
+    , apiEndpoint : String
+    }
+
+type alias Flags =
+    {
+        apiEndpoint : String
     }
 
 
@@ -74,9 +80,10 @@ type alias DateTime =
     }
 
 
-init : () -> ( Model, Cmd Msg )
-init _ =
-    ( { apiState = Init, timerState = Stopped, timeEntries = [], time = Time.millisToPosix 0 }, Cmd.none )
+init : Flags -> ( Model, Cmd Msg )
+init flags =
+
+    ( { apiState = Init, timerState = Stopped, timeEntries = [], time = Time.millisToPosix 0, apiEndpoint = flags.apiEndpoint }, Cmd.none )
 
 
 
@@ -433,7 +440,7 @@ getDate time =
 
 getUrl : String -> String
 getUrl date =
-    "https://www.toggl.com/api/v8/time_entries?start_date=" ++ date ++ "T00:00:00Z&end_date=" ++ date ++ "T23:59:59Z"
+    "time_entries?start_date=" ++ date ++ "T00:00:00Z&end_date=" ++ date ++ "T23:59:59Z"
 
 
 getTimerState : Model -> TimerState
@@ -466,8 +473,11 @@ getTimeEntries model =
     Http.request
         { body = Http.emptyBody
         , method = "GET"
-        , headers = [ Http.header "Authorization" "Basic ODUzYWViNDk2MTY2YTRjNzgxYTI3YzQ0YTU3ZTQ5NTc6YXBpX3Rva2Vu" ]
-        , url = getUrl (getDate model.time)
+        , headers =
+            [
+               Http.header "Authorization" "Basic ODUzYWViNDk2MTY2YTRjNzgxYTI3YzQ0YTU3ZTQ5NTc6YXBpX3Rva2Vu"
+            ]
+        , url = model.apiEndpoint ++ getUrl (getDate model.time)
         , expect = Http.expectJson GotTimeEntries listOfRecordsDecoder
         , timeout = Nothing
         , tracker = Nothing
@@ -488,7 +498,7 @@ startTimer model =
                     ]
         , method = "POST"
         , headers = [ Http.header "Authorization" "Basic ODUzYWViNDk2MTY2YTRjNzgxYTI3YzQ0YTU3ZTQ5NTc6YXBpX3Rva2Vu" ]
-        , url = "https://www.toggl.com/api/v8/time_entries/start"
+        , url = model.apiEndpoint ++ "time_entries/start"
         , expect = Http.expectJson StartedTimer singleTimeEntryDecoder
         , timeout = Nothing
         , tracker = Nothing
@@ -511,8 +521,11 @@ stopTimer model =
                 Http.request
                     { body = Http.emptyBody
                     , method = "PUT"
-                    , headers = [ Http.header "Authorization" "Basic ODUzYWViNDk2MTY2YTRjNzgxYTI3YzQ0YTU3ZTQ5NTc6YXBpX3Rva2Vu" ]
-                    , url = "https://www.toggl.com/api/v8/time_entries/" ++ String.fromInt timer.id ++ "/stop"
+                    , headers =
+                     [
+                        Http.header "Authorization" "Basic ODUzYWViNDk2MTY2YTRjNzgxYTI3YzQ0YTU3ZTQ5NTc6YXBpX3Rva2Vu"
+                     ]
+                    , url = model.apiEndpoint ++ "time_entries/" ++ String.fromInt timer.id ++ "/stop"
                     , expect = Http.expectJson StoppedTimer singleTimeEntryDecoder
                     , timeout = Nothing
                     , tracker = Nothing
