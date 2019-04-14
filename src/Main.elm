@@ -2,12 +2,15 @@ module Main exposing (ApiState(..), Model, Msg(..), TimeEntry, getTimeEntries, i
 
 import Array
 import Browser
+import Dict
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Http
 import Json.Decode exposing (Decoder, andThen, at, field, int, list, map4, maybe, string, succeed)
 import Json.Encode
+import Svg
+import Svg.Attributes
 import Time exposing (..)
 
 
@@ -48,6 +51,13 @@ type ApiState
     | Success
 
 
+type View
+    = DailyList
+    | DailyGrid
+    | WeekView
+    | MonthView
+
+
 type alias TimeEntries =
     List TimeEntry
 
@@ -59,6 +69,7 @@ type alias Model =
     , time : Time.Posix
     , apiEndpoint : String
     , apiAuth : String
+    , view : View
     }
 
 
@@ -96,6 +107,7 @@ init flags =
             , time = Time.millisToPosix flags.time
             , apiEndpoint = flags.apiEndpoint
             , apiAuth = flags.apiAuth
+            , view = DailyGrid
             }
     in
     ( model, getTimeEntries model )
@@ -114,6 +126,7 @@ type Msg
     | StartedTimer (Result Http.Error TimeEntry)
     | StoppedTimer (Result Http.Error TimeEntry)
     | Tick Time.Posix
+    | ChangedView View
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -164,6 +177,9 @@ update msg model =
         StoppedTimer (Err _) ->
             ( model, Cmd.none )
 
+        ChangedView newView ->
+            ( { model | view = newView }, Cmd.none )
+
 
 
 -- SUBSCRIPTIONS
@@ -190,6 +206,164 @@ view model =
         ]
 
 
+type alias Grid =
+    Dict.Dict ( Int, Int ) Int
+
+
+timeEntryToBins : DateTime -> DateTime -> Grid -> Grid
+timeEntryToBins start end grid =
+    if start.hours > end.hours || (start.hours == end.hours && start.minutes >= end.minutes) then
+        grid
+
+    else
+        let
+            y =
+                start.hours
+
+            x =
+                start.minutes // 10
+
+            binValue =
+                10 - modBy 10 start.minutes
+
+            minutes =
+                start.minutes + binValue
+
+            newStart =
+                { year = 0
+                , month = 0
+                , day = 0
+                , hours = start.hours + (minutes // 60)
+                , minutes = modBy 60 minutes
+                , seconds = start.seconds
+                }
+        in
+        if newStart.hours > end.hours || (newStart.hours == end.hours && newStart.minutes >= end.minutes) then
+            Dict.update ( y, x ) (always (Just (end.minutes - start.minutes))) grid
+
+        else
+            timeEntryToBins newStart end (Dict.update ( y, x ) (always (Just binValue)) grid)
+
+
+populateGrid : TimeEntries -> Grid -> Grid
+populateGrid entries grid =
+    case entries of
+        x :: xs ->
+            let
+                newGrid =
+                    timeEntryToBins x.start (Maybe.withDefault x.start x.stop) grid
+            in
+            populateGrid xs newGrid
+
+        [] ->
+            grid
+
+
+viewSvg : Model -> Html Msg
+viewSvg model =
+    let
+        hours =
+            List.range 6 22
+
+        minutesBins =
+            List.range 0 5
+
+        keys =
+            List.map2 Tuple.pair
+                (hours |> List.map (\hour -> List.repeat 6 hour) |> List.concat)
+                (hours |> List.map (\_ -> minutesBins) |> List.concat)
+
+        grid =
+            keys
+                |> List.map (\key -> ( key, 0 ))
+                |> Dict.fromList
+                |> populateGrid model.timeEntries
+
+        textLabel =
+            \y x label ->
+                Svg.text_
+                    [ Svg.Attributes.x (String.fromInt x)
+                    , Svg.Attributes.y (String.fromInt y)
+                    , Svg.Attributes.fontSize "16"
+                    , Svg.Attributes.class "text-grey-dark fill-current"
+                    ]
+                    [ text label ]
+
+        labelsFrom =
+            hours
+                |> List.map
+                    (\hour ->
+                        let
+                            y =
+                                ((hour - 6) * 35) + 21
+
+                            x =
+                                5
+
+                            label =
+                                String.padLeft 2 '0' (String.fromInt hour) ++ ":00"
+                        in
+                        textLabel y x label
+                    )
+
+        labelsTo =
+            hours
+                |> List.map
+                    (\hour ->
+                        let
+                            y =
+                                ((hour - 6) * 35) + 21
+
+                            x =
+                                265
+
+                            label =
+                                String.padLeft 2 '0' (String.fromInt hour) ++ ":59"
+                        in
+                        textLabel y x label
+                    )
+
+        timeBinRect =
+            \y x minutes ->
+                let
+                    opacity =
+                        Basics.max 0.2 (toFloat minutes / 10.0)
+
+                    color =
+                        if minutes > 5 then
+                            "#38c172"
+
+                        else if minutes > 0 then
+                            "#64d5ca"
+
+                        else
+                            "#b8c2cc"
+                in
+                Svg.rect
+                    [ Svg.Attributes.x (String.fromInt x)
+                    , Svg.Attributes.y (String.fromInt y)
+                    , Svg.Attributes.width "30"
+                    , Svg.Attributes.height "30"
+                    , Svg.Attributes.rx "2"
+                    , Svg.Attributes.ry "2"
+                    , Svg.Attributes.fill color
+                    , Svg.Attributes.opacity (String.fromFloat opacity)
+                    ]
+                    []
+
+        timeBins =
+            grid
+                |> Dict.toList
+                |> List.map (\( ( y, x ), minutes ) -> timeBinRect ((y - 6) * 35) (50 + x * 35) minutes)
+    in
+    Svg.svg
+        [ Svg.Attributes.width "305"
+        , Svg.Attributes.height "590"
+        , Svg.Attributes.viewBox "0 0 305 590"
+        ]
+        (timeBins ++ labelsFrom ++ labelsTo)
+
+
 viewData : Model -> Html Msg
 viewData model =
     case model.apiState of
@@ -214,17 +388,80 @@ viewData model =
                         , viewToggleTimer model
                         ]
                     ]
-                , section []
-                    [ div [ class "container mx-auto" ]
-                        [ div [ class "flex justify-center" ]
-                            [ div [ class "mt-16" ]
-                                [ table [ class "table" ]
-                                    [ tbody [] (List.map (\entry -> viewEntry entry model) model.timeEntries |> List.reverse) ]
-                                ]
+                , viewContentNavigation model
+                , viewContent model
+                ]
+
+
+type alias NavigationButton =
+    { label : String
+    , view : View
+    }
+
+
+viewContentNavigation : Model -> Html Msg
+viewContentNavigation model =
+    let
+        normalStyle =
+            "mt-16 mb-8 text-grey-dark mx-2"
+
+        activeStyle =
+            "mt-16 mb-8 text-grey-darker mx-2"
+
+        getStyle =
+            \btnView ->
+                if model.view == btnView then
+                    activeStyle
+
+                else
+                    normalStyle
+
+        buttons =
+            [ { label = "Grid"
+              , toView = DailyGrid
+              }
+            , { label = "List"
+              , toView = DailyList
+              }
+            , { label = "Week"
+              , toView = WeekView
+              }
+            , { label = "Month"
+              , toView = MonthView
+              }
+            ]
+                |> List.map
+                    (\{ label, toView } ->
+                        button [ class (getStyle toView), onClick (ChangedView toView) ]
+                            [ span [ class "font-normal" ] [ text label ]
+                            ]
+                    )
+    in
+    div [] buttons
+
+
+viewContent : Model -> Html Msg
+viewContent model =
+    case model.view of
+        DailyGrid ->
+            section []
+                [ div [ class "container mx-auto" ] [ viewSvg model ]
+                ]
+
+        DailyList ->
+            section []
+                [ div [ class "container mx-auto" ]
+                    [ div [ class "flex justify-center" ]
+                        [ div []
+                            [ table [ class "table" ]
+                                [ tbody [] (List.map (\entry -> viewEntry entry model) model.timeEntries |> List.reverse) ]
                             ]
                         ]
                     ]
                 ]
+
+        _ ->
+            div [] [ text "Not implemented" ]
 
 
 viewToggleTimer : Model -> Html Msg
@@ -264,7 +501,7 @@ viewEntry entry model =
     in
     case entry.stop of
         Just stop ->
-            tr [ class "border-indigo-darkest border-0 border-b" ]
+            tr [ class "border-gray-dark border-0 border-b" ]
                 [ td [ class "p-4" ]
                     [ span [ class "text-grey-dark mr-10" ]
                         [ text
