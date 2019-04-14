@@ -253,13 +253,14 @@ viewEntry entry model =
         duration =
             getEntryDuration entry model.time
                 |> toClockTime
-                |> viewClockTime
+                |> viewShortClockTime
 
-        -- currentTime : ClockTime
-        -- currentTime = { hours = toHour utc model.time + myTimeZone
-        --                    , minutes = toMinute utc model.time
-        --                    , seconds = toSecond utc model.time
-        --                    }
+        currentTime : ClockTime
+        currentTime =
+            { hours = toHour utc model.time + myTimeZone
+            , minutes = toMinute utc model.time
+            , seconds = toSecond utc model.time
+            }
     in
     case entry.stop of
         Just stop ->
@@ -277,20 +278,18 @@ viewEntry entry model =
                 ]
 
         Nothing ->
-            -- tr [ class "border-indigo-darkest border-0 border-b" ]
-            --     [ td [ class "p-4" ]
-            --         [ span [class "text-grey-dark mr-10"]
-            --             [
-            --                 text(
-            --                     viewDateTimeClock entry.start
-            --                     ++ " - "
-            --                     ++ viewClockTime currentTime
-            --                     )
-            --             ]
-            --             , span [] [text(duration)]
-            --         ]
-            --     ]
-            tr [] []
+            tr [ class "border-indigo-darkest border-0 border-b" ]
+                [ td [ class "p-4" ]
+                    [ span [ class "text-grey-dark mr-10" ]
+                        [ text
+                            (viewDateTimeClock entry.start
+                                ++ " - "
+                                ++ viewShortClockTime currentTime
+                            )
+                        ]
+                    , span [] [ text duration ]
+                    ]
+                ]
 
 
 viewDateTimeClock : DateTime -> String
@@ -303,7 +302,14 @@ viewDateTimeClock dateTime =
             , seconds = dateTime.seconds
             }
     in
-    viewClockTime clockTime
+    viewShortClockTime clockTime
+
+
+viewShortClockTime : ClockTime -> String
+viewShortClockTime time =
+    String.padLeft 2 '0' (String.fromInt time.hours)
+        ++ ":"
+        ++ String.padLeft 2 '0' (String.fromInt time.minutes)
 
 
 viewClockTime : ClockTime -> String
