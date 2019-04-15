@@ -245,15 +245,25 @@ timeEntryToBins start end grid =
             timeEntryToBins newStart end (Dict.update ( y, x ) (always (Just binValue)) grid)
 
 
-populateGrid : TimeEntries -> Grid -> Grid
-populateGrid entries grid =
+populateGrid : TimeEntries -> Model -> Grid -> Grid
+populateGrid entries model grid =
     case entries of
         x :: xs ->
             let
+                currentTime : DateTime
+                currentTime =
+                    { year = 0
+                    , month = 0
+                    , day = toDay utc model.time
+                    , hours = toHour utc model.time + myTimeZone
+                    , minutes = toMinute utc model.time
+                    , seconds = toSecond utc model.time
+                    }
+
                 newGrid =
-                    timeEntryToBins x.start (Maybe.withDefault x.start x.stop) grid
+                    timeEntryToBins x.start (Maybe.withDefault currentTime x.stop) grid
             in
-            populateGrid xs newGrid
+            populateGrid xs model newGrid
 
         [] ->
             grid
@@ -277,7 +287,7 @@ viewSvg model =
             keys
                 |> List.map (\key -> ( key, 0 ))
                 |> Dict.fromList
-                |> populateGrid model.timeEntries
+                |> populateGrid model.timeEntries model
 
         textLabel =
             \y x label ->
@@ -355,13 +365,33 @@ viewSvg model =
             grid
                 |> Dict.toList
                 |> List.map (\( ( y, x ), minutes ) -> timeBinRect ((y - 6) * 35) (50 + x * 35) minutes)
+
+        clockTime : ClockTime
+        clockTime =
+            { hours = toHour utc model.time + myTimeZone
+            , minutes = toMinute utc model.time
+            , seconds = toSecond utc model.time
+            }
+
+        currentTimeIndicator =
+            Svg.rect
+                [ Svg.Attributes.x (String.fromFloat (50 + toFloat clockTime.minutes / 60 * 205))
+                , Svg.Attributes.y (String.fromInt (-2 + (clockTime.hours - 6) * 35))
+                , Svg.Attributes.width "2"
+                , Svg.Attributes.height "34"
+                , Svg.Attributes.rx "2"
+                , Svg.Attributes.ry "2"
+                , Svg.Attributes.fill "#e3342f"
+                , Svg.Attributes.opacity "1"
+                ]
+                []
     in
     Svg.svg
         [ Svg.Attributes.width "305"
         , Svg.Attributes.height "590"
         , Svg.Attributes.viewBox "0 0 305 590"
         ]
-        (timeBins ++ labelsFrom ++ labelsTo)
+        (timeBins ++ labelsFrom ++ labelsTo ++ [ currentTimeIndicator ])
 
 
 viewData : Model -> Html Msg
