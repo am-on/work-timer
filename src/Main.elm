@@ -148,11 +148,13 @@ update msg model =
             ( { model | time = time }, Cmd.none )
 
         GotTimeEntries (Ok entries) ->
-            let
-                newModel =
-                    { model | apiState = Success, timeEntries = entries }
-            in
-            ( { newModel | timerState = getTimerState newModel }, Cmd.none )
+            ( { model
+                | apiState = Success
+                , timeEntries = entries
+                , timerState = getTimerState entries
+              }
+            , Cmd.none
+            )
 
         GotTimeEntries (Err _) ->
             ( { model | apiState = Failure }, Cmd.none )
@@ -728,9 +730,10 @@ getUrl date =
     "time_entries?start_date=" ++ date ++ "T00:00:00Z&end_date=" ++ date ++ "T23:59:59Z"
 
 
-getTimerState : Model -> TimerState
-getTimerState model =
-    List.reverse model.timeEntries
+getTimerState : TimeEntries -> TimerState
+getTimerState timeEntries =
+    timeEntries
+        |> List.reverse
         |> List.head
         |> (\entry ->
                 case entry of
