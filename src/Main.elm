@@ -387,13 +387,37 @@ viewSvg model =
                 , Svg.Attributes.opacity "1"
                 ]
                 []
+
+        endTime =
+            posixToMillis model.time
+                + (getTodoTime model * 1000)
+                |> millisToPosix
+
+        endClockTime =
+            { hours = toHour utc endTime + myTimeZone
+            , minutes = toMinute utc endTime
+            , seconds = toSecond utc endTime
+            }
+
+        stopTimeIndicator =
+            Svg.rect
+                [ Svg.Attributes.x (String.fromFloat (50 + toFloat endClockTime.minutes / 60 * 205))
+                , Svg.Attributes.y (String.fromInt (-2 + (endClockTime.hours - 6) * 35))
+                , Svg.Attributes.width "2"
+                , Svg.Attributes.height "34"
+                , Svg.Attributes.rx "2"
+                , Svg.Attributes.ry "2"
+                , Svg.Attributes.fill "black"
+                , Svg.Attributes.opacity "1"
+                ]
+                []
     in
     Svg.svg
         [ Svg.Attributes.width "305"
-        , Svg.Attributes.height "590"
-        , Svg.Attributes.viewBox "0 0 305 590"
+        , Svg.Attributes.height "600"
+        , Svg.Attributes.viewBox "0 0 305 600"
         ]
-        (timeBins ++ labelsFrom ++ labelsTo ++ [ currentTimeIndicator ])
+        (timeBins ++ labelsFrom ++ labelsTo ++ [ currentTimeIndicator ] ++ [ stopTimeIndicator ])
 
 
 viewData : Model -> Html Msg
@@ -636,8 +660,8 @@ workedTime model =
         |> viewClockTime
 
 
-todoTime : Model -> String
-todoTime model =
+getTodoTime : Model -> Int
+getTodoTime model =
     let
         done =
             getWorkedTime model
@@ -645,9 +669,15 @@ todoTime model =
         -- 7.5 hours
         required =
             7 * 60 * 60 + 1 * 30 * 60
+    in
+    required - done
 
+
+todoTime : Model -> String
+todoTime model =
+    let
         todo =
-            required - done
+            getTodoTime model
 
         overtime =
             todo < 0
