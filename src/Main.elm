@@ -1,4 +1,17 @@
-module Main exposing (ApiState(..), Model, Msg(..), getTimeEntries, init, listOfRecordsDecoder, main, subscriptions, timeEntryDecoder, update, view, viewEntry)
+module Main exposing
+    ( ApiState(..)
+    , Model
+    , Msg(..)
+    , getTimeEntries
+    , init
+    , listOfRecordsDecoder
+    , main
+    , subscriptions
+    , timeEntryDecoder
+    , update
+    , view
+    , viewEntry
+    )
 
 import Array
 import Browser
@@ -7,10 +20,32 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Http
-import Json.Decode exposing (Decoder, andThen, at, field, int, list, map4, maybe, string, succeed)
+import Json.Decode
+    exposing
+        ( Decoder
+        , andThen
+        , at
+        , field
+        , int
+        , list
+        , map4
+        , maybe
+        , string
+        , succeed
+        )
 import Json.Encode
 import Time
-import TimeEntry exposing (ClockTime, DateTime, TimeEntries, TimeEntry, getEntryDuration, getTodoTime, getWorkedTime, myTimeZone)
+import TimeEntry
+    exposing
+        ( ClockTime
+        , DateTime
+        , TimeEntries
+        , TimeEntry
+        , getEntryDuration
+        , getTodoTime
+        , getWorkedTime
+        , myTimeZone
+        )
 
 
 
@@ -277,7 +312,13 @@ viewContent model =
                     [ div [ class "flex justify-center" ]
                         [ div []
                             [ table [ class "table" ]
-                                [ tbody [] (List.map (\entry -> viewEntry entry model) model.timeEntries |> List.reverse) ]
+                                [ tbody []
+                                    (List.map
+                                        (\entry -> viewEntry entry model)
+                                        model.timeEntries
+                                        |> List.reverse
+                                    )
+                                ]
                             ]
                         ]
                     ]
@@ -537,7 +578,11 @@ stopTimer model =
                     { body = Http.emptyBody
                     , method = "PUT"
                     , headers = [ Http.header "Authorization" model.apiAuth ]
-                    , url = model.apiEndpoint ++ "time_entries/" ++ String.fromInt timer.id ++ "/stop"
+                    , url =
+                        model.apiEndpoint
+                            ++ "time_entries/"
+                            ++ String.fromInt timer.id
+                            ++ "/stop"
                     , expect = Http.expectJson StoppedTimer singleTimeEntryDecoder
                     , timeout = Nothing
                     , tracker = Nothing

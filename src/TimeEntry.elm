@@ -1,4 +1,13 @@
-module TimeEntry exposing (ClockTime, DateTime, TimeEntries, TimeEntry, getEntryDuration, getTodoTime, getWorkedTime, myTimeZone)
+module TimeEntry exposing
+    ( ClockTime
+    , DateTime
+    , TimeEntries
+    , TimeEntry
+    , getEntryDuration
+    , getTodoTime
+    , getWorkedTime
+    , myTimeZone
+    )
 
 import Time
 

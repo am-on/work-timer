@@ -7,7 +7,14 @@ import Html.Events exposing (..)
 import Svg
 import Svg.Attributes
 import Time
-import TimeEntry exposing (ClockTime, DateTime, TimeEntries, getTodoTime, myTimeZone)
+import TimeEntry
+    exposing
+        ( ClockTime
+        , DateTime
+        , TimeEntries
+        , getTodoTime
+        , myTimeZone
+        )
 
 
 type alias Grid =
@@ -42,7 +49,11 @@ timeEntryToBins start end grid =
                 , seconds = start.seconds
                 }
         in
-        if newStart.hours > end.hours || (newStart.hours == end.hours && newStart.minutes >= end.minutes) then
+        if
+            newStart.hours
+                > end.hours
+                || (newStart.hours == end.hours && newStart.minutes >= end.minutes)
+        then
             Dict.update ( y, x ) (always (Just (end.minutes - start.minutes))) grid
 
         else
