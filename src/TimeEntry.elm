@@ -70,7 +70,7 @@ getTodoTime timeEntries time =
 
 getEntryDuration : TimeEntry -> Time.Posix -> Int
 getEntryDuration entry time =
-    if entry.duration > 0 then
+    if entry.duration >= 0 then
         entry.duration
 
     else
