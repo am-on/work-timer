@@ -15,6 +15,8 @@ module Main exposing
 
 import Array
 import Browser
+import Derberos.Date.Calendar as DateCalendar
+import Derberos.Date.Utils as DateUtils
 import Grid exposing (viewGrid)
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -34,6 +36,7 @@ import Json.Decode
         , succeed
         )
 import Json.Encode
+import MonthView exposing (viewMonth)
 import Time
 import TimeEntry
     exposing
@@ -45,6 +48,14 @@ import TimeEntry
         , getTodoTime
         , getWorkedTime
         , myTimeZone
+        )
+import TimeHelpers
+    exposing
+        ( toClockTime
+        , todoTime
+        , viewClockTime
+        , viewShortClockTime
+        , viewWorkedTime
         )
 
 
@@ -73,6 +84,7 @@ type TimerState
 type ApiState
     = Failure
     | Loading
+    | LoadingContent
     | Success
 
 
@@ -87,6 +99,7 @@ type alias Model =
     { apiState : ApiState
     , timerState : TimerState
     , timeEntries : TimeEntries
+    , monthTimeEntries : TimeEntries
     , time : Time.Posix
     , apiEndpoint : String
     , apiAuth : String
@@ -108,13 +121,14 @@ init flags =
             { apiState = Loading
             , timerState = Stopped
             , timeEntries = []
+            , monthTimeEntries = []
             , time = Time.millisToPosix flags.time
             , apiEndpoint = flags.apiEndpoint
             , apiAuth = flags.apiAuth
             , view = DailyGrid
             }
     in
-    ( model, getTimeEntries model )
+    ( model, getTimeEntries model.apiEndpoint model.apiAuth model.time model.time )
 
 
 
@@ -127,6 +141,7 @@ type Msg
     | StopTimer
     | RefreshAPI Time.Posix
     | GotTimeEntries (Result Http.Error TimeEntries)
+    | GotMonthTimeEntries (Result Http.Error TimeEntries)
     | StartedTimer (Result Http.Error TimeEntry)
     | StoppedTimer (Result Http.Error TimeEntry)
     | Tick Time.Posix
@@ -137,7 +152,9 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Refresh ->
-            ( { model | apiState = Loading, timeEntries = [] }, getTimeEntries model )
+            ( { model | apiState = Loading, timeEntries = [] }
+            , getTimeEntries model.apiEndpoint model.apiAuth model.time model.time
+            )
 
         StartTimer ->
             ( model, startTimer model )
@@ -146,7 +163,9 @@ update msg model =
             ( model, stopTimer model )
 
         RefreshAPI _ ->
-            ( model, getTimeEntries model )
+            ( model
+            , getTimeEntries model.apiEndpoint model.apiAuth model.time model.time
+            )
 
         Tick time ->
             ( { model | time = time }, Cmd.none )
@@ -163,12 +182,25 @@ update msg model =
         GotTimeEntries (Err _) ->
             ( { model | apiState = Failure }, Cmd.none )
 
+        GotMonthTimeEntries (Ok entries) ->
+            ( { model
+                | apiState = Success
+                , monthTimeEntries = entries
+              }
+            , Cmd.none
+            )
+
+        GotMonthTimeEntries (Err _) ->
+            ( { model | apiState = Failure }, Cmd.none )
+
         StartedTimer (Ok _) ->
             let
                 newModel =
                     { model | timerState = Running }
             in
-            ( newModel, getTimeEntries newModel )
+            ( newModel
+            , getTimeEntries newModel.apiEndpoint newModel.apiAuth newModel.time newModel.time
+            )
 
         StartedTimer (Err _) ->
             ( model, Cmd.none )
@@ -178,10 +210,17 @@ update msg model =
                 newModel =
                     { model | timerState = Stopped }
             in
-            ( newModel, getTimeEntries newModel )
+            ( newModel
+            , getTimeEntries newModel.apiEndpoint newModel.apiAuth newModel.time newModel.time
+            )
 
         StoppedTimer (Err _) ->
             ( model, Cmd.none )
+
+        ChangedView MonthView ->
+            ( { model | view = MonthView, apiState = LoadingContent }
+            , getMonthTimeEntries model.apiEndpoint model.apiAuth model.time
+            )
 
         ChangedView newView ->
             ( { model | view = newView }, Cmd.none )
@@ -215,6 +254,13 @@ view model =
 
         Loading ->
             text "Loading..."
+
+        LoadingContent ->
+            div []
+                [ viewHeader model
+                , viewContentNavigation model
+                , text "Loading..."
+                ]
 
         Success ->
             div []
@@ -314,7 +360,7 @@ viewContent model =
                             [ table [ class "table" ]
                                 [ tbody []
                                     (List.map
-                                        (\entry -> viewEntry entry model)
+                                        (\entry -> viewEntry entry model.time)
                                         model.timeEntries
                                         |> List.reverse
                                     )
@@ -324,23 +370,26 @@ viewContent model =
                     ]
                 ]
 
+        MonthView ->
+            viewMonth model.monthTimeEntries model.time
+
         _ ->
             div [] [ text "Not implemented" ]
 
 
-viewEntry : TimeEntry -> Model -> Html msg
-viewEntry entry model =
+viewEntry : TimeEntry -> Time.Posix -> Html msg
+viewEntry entry time =
     let
         duration =
-            getEntryDuration entry model.time
+            getEntryDuration entry time
                 |> toClockTime
                 |> viewShortClockTime
 
         currentTime : ClockTime
         currentTime =
-            { hours = Time.toHour Time.utc model.time + myTimeZone
-            , minutes = Time.toMinute Time.utc model.time
-            , seconds = Time.toSecond Time.utc model.time
+            { hours = Time.toHour Time.utc time + myTimeZone
+            , minutes = Time.toMinute Time.utc time
+            , seconds = Time.toSecond Time.utc time
             }
     in
     case entry.stop of
@@ -373,103 +422,6 @@ viewEntry entry model =
                 ]
 
 
-viewShortClockTime : { a | hours : Int, minutes : Int } -> String
-viewShortClockTime { hours, minutes } =
-    String.padLeft 2 '0' (String.fromInt hours)
-        ++ ":"
-        ++ String.padLeft 2 '0' (String.fromInt minutes)
-
-
-viewClockTime : ClockTime -> String
-viewClockTime time =
-    String.padLeft 2 '0' (String.fromInt time.hours)
-        ++ ":"
-        ++ String.padLeft 2 '0' (String.fromInt time.minutes)
-        ++ ":"
-        ++ String.padLeft 2 '0' (String.fromInt time.seconds)
-
-
-toClockTime : Int -> ClockTime
-toClockTime seconds =
-    let
-        clockTime : ClockTime
-        clockTime =
-            { hours = seconds // (60 * 60)
-            , minutes = remainderBy 60 (seconds // 60)
-            , seconds = remainderBy 60 seconds
-            }
-    in
-    clockTime
-
-
-viewWorkedTime : TimeEntries -> Time.Posix -> String
-viewWorkedTime timeEntries time =
-    getWorkedTime timeEntries time
-        |> toClockTime
-        |> viewClockTime
-
-
-todoTime : TimeEntries -> Time.Posix -> String
-todoTime timeEntries time =
-    let
-        todo =
-            getTodoTime timeEntries time
-
-        overtime =
-            todo < 0
-
-        viewTime =
-            abs todo
-                |> toClockTime
-                |> viewClockTime
-    in
-    if overtime then
-        "+ " ++ viewTime
-
-    else
-        viewTime
-
-
-toIntMonth : Time.Month -> Int
-toIntMonth month =
-    case month of
-        Time.Jan ->
-            1
-
-        Time.Feb ->
-            2
-
-        Time.Mar ->
-            3
-
-        Time.Apr ->
-            4
-
-        Time.May ->
-            5
-
-        Time.Jun ->
-            6
-
-        Time.Jul ->
-            7
-
-        Time.Aug ->
-            8
-
-        Time.Sep ->
-            9
-
-        Time.Oct ->
-            10
-
-        Time.Nov ->
-            11
-
-        Time.Dec ->
-            12
-
-
 isoDate : Time.Posix -> String
 isoDate time =
     let
@@ -479,7 +431,7 @@ isoDate time =
 
         month =
             Time.toMonth Time.utc time
-                |> toIntMonth
+                |> DateUtils.monthToNumber1
                 |> String.fromInt
                 |> String.padLeft 2 '0'
 
@@ -517,23 +469,44 @@ getTimerState timeEntries =
 -- HTTP
 
 
-getTimeEntries : Model -> Cmd Msg
-getTimeEntries model =
+getMonthTimeEntries : String -> String -> Time.Posix -> Cmd Msg
+getMonthTimeEntries apiEndpoint apiAuth time =
     let
         url =
-            \date ->
-                model.apiEndpoint
-                    ++ "time_entries?start_date="
-                    ++ date
-                    ++ "T00:00:00Z&end_date="
-                    ++ date
-                    ++ "T23:59:59Z"
+            apiEndpoint
+                ++ "time_entries?start_date="
+                ++ isoDate (DateCalendar.getFirstDayOfMonth Time.utc time)
+                ++ "T00:00:00Z&end_date="
+                ++ isoDate time
+                ++ "T23:59:59Z"
     in
     Http.request
         { body = Http.emptyBody
         , method = "GET"
-        , headers = [ Http.header "Authorization" model.apiAuth ]
-        , url = url (isoDate model.time)
+        , headers = [ Http.header "Authorization" apiAuth ]
+        , url = url
+        , expect = Http.expectJson GotMonthTimeEntries listOfRecordsDecoder
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+getTimeEntries : String -> String -> Time.Posix -> Time.Posix -> Cmd Msg
+getTimeEntries apiEndpoint apiAuth start end =
+    let
+        url =
+            apiEndpoint
+                ++ "time_entries?start_date="
+                ++ isoDate start
+                ++ "T00:00:00Z&end_date="
+                ++ isoDate end
+                ++ "T23:59:59Z"
+    in
+    Http.request
+        { body = Http.emptyBody
+        , method = "GET"
+        , headers = [ Http.header "Authorization" apiAuth ]
+        , url = url
         , expect = Http.expectJson GotTimeEntries listOfRecordsDecoder
         , timeout = Nothing
         , tracker = Nothing
