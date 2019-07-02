@@ -11,12 +11,26 @@ const apiEndpoint = () => {
 
 }
 
-Elm.Main.init({
+const app = Elm.Main.init({
   node: document.getElementById('root'),
   flags: {
     apiEndpoint: apiEndpoint(),
     apiAuth: process.env.ELM_APP_API_AUTH,
     time: Date.now()
+  }
+});
+
+app.ports.favicon.subscribe(message => {
+  var favicon = document.getElementById('favicon');
+  switch (message) {
+    case "Running":
+      favicon.href = favicon.href.replace("stop", "run");
+      break;
+    case "Stopped":
+      favicon.href = favicon.href.replace("run", "stop");
+      break;
+    default:
+      return;
   }
 });
 
