@@ -1,7 +1,8 @@
-module Main exposing
+port module Main exposing
     ( ApiState(..)
     , Model
     , Msg(..)
+    , favicon
     , getTimeEntries
     , init
     , listOfRecordsDecoder
@@ -79,6 +80,16 @@ main =
 type TimerState
     = Stopped
     | Running
+
+
+timerStateString : TimerState -> String
+timerStateString state =
+    case state of
+        Stopped ->
+            "Stopped"
+
+        Running ->
+            "Running"
 
 
 type ApiState
@@ -171,12 +182,16 @@ update msg model =
             ( { model | time = time }, Cmd.none )
 
         GotTimeEntries (Ok entries) ->
-            ( { model
-                | apiState = Success
-                , timeEntries = entries
-                , timerState = getTimerState entries
-              }
-            , Cmd.none
+            let
+                newModel =
+                    { model
+                        | apiState = Success
+                        , timeEntries = entries
+                        , timerState = getTimerState entries
+                    }
+            in
+            ( newModel
+            , favicon (timerStateString newModel.timerState)
             )
 
         GotTimeEntries (Err _) ->
@@ -199,7 +214,10 @@ update msg model =
                     { model | timerState = Running }
             in
             ( newModel
-            , getTimeEntries newModel.apiEndpoint newModel.apiAuth newModel.time newModel.time
+            , Cmd.batch
+                [ getTimeEntries newModel.apiEndpoint newModel.apiAuth newModel.time newModel.time
+                , favicon (timerStateString newModel.timerState)
+                ]
             )
 
         StartedTimer (Err _) ->
@@ -211,7 +229,10 @@ update msg model =
                     { model | timerState = Stopped }
             in
             ( newModel
-            , getTimeEntries newModel.apiEndpoint newModel.apiAuth newModel.time newModel.time
+            , Cmd.batch
+                [ getTimeEntries newModel.apiEndpoint newModel.apiAuth newModel.time newModel.time
+                , favicon (timerStateString newModel.timerState)
+                ]
             )
 
         StoppedTimer (Err _) ->
@@ -236,6 +257,13 @@ subscriptions _ =
         [ Time.every 5000 RefreshAPI
         , Time.every 1000 Tick
         ]
+
+
+
+-- PORTS
+
+
+port favicon : String -> Cmd msg
 
 
 
