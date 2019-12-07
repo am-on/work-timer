@@ -25,10 +25,10 @@ app.ports.favicon.subscribe(message => {
   var favicon = document.getElementById('favicon');
   switch (message) {
     case "Running":
-      favicon.href = favicon.href.replace("stop", "run");
+      favicon.href = favicon.href.replace("favicon-stop", "favicon-run");
       break;
     case "Stopped":
-      favicon.href = favicon.href.replace("run", "stop");
+      favicon.href = favicon.href.replace("favicon-run", "favicon-stop");
       break;
     default:
       return;
