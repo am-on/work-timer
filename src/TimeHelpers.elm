@@ -3,6 +3,7 @@ module TimeHelpers exposing
     , todoTime
     , viewClockTime
     , viewShortClockTime
+    , viewShortPosixTime
     , viewWorkedTime
     )
 
@@ -10,21 +11,33 @@ import Time
 import TimeEntry
     exposing
         ( ClockTime
-        , DateTime
         , TimeEntries
         , TimeEntry
         , getEntryDuration
         , getTodoTime
         , getWorkedTime
-        , myTimeZone
         )
 
 
-viewShortClockTime : { a | hours : Int, minutes : Int } -> String
-viewShortClockTime { hours, minutes } =
+viewShortPosixTime : Time.Posix -> Time.Zone -> String
+viewShortPosixTime time timezone =
+    let
+        hours =
+            Time.toHour timezone time
+
+        minutes =
+            Time.toMinute timezone time
+    in
     String.padLeft 2 '0' (String.fromInt hours)
         ++ ":"
         ++ String.padLeft 2 '0' (String.fromInt minutes)
+
+
+viewShortClockTime : ClockTime -> String
+viewShortClockTime time =
+    String.padLeft 2 '0' (String.fromInt time.hours)
+        ++ ":"
+        ++ String.padLeft 2 '0' (String.fromInt time.minutes)
 
 
 viewClockTime : ClockTime -> String

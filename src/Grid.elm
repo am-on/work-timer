@@ -10,10 +10,8 @@ import Time
 import TimeEntry
     exposing
         ( ClockTime
-        , DateTime
         , TimeEntries
         , getTodoTime
-        , myTimeZone
         )
 
 
@@ -21,71 +19,95 @@ type alias Grid =
     Dict.Dict ( Int, Int ) Int
 
 
-timeEntryToBins : DateTime -> DateTime -> Grid -> Grid
-timeEntryToBins start end grid =
-    if start.hours > end.hours || (start.hours == end.hours && start.minutes >= end.minutes) then
+addMinutesToGrid : Int -> Int -> Grid -> Int -> Grid
+addMinutesToGrid x y grid minutes =
+    let
+        oldValue =
+            Maybe.withDefault 0 (Dict.get ( y, x ) grid)
+    in
+    Dict.update
+        ( y, x )
+        (always (Just (oldValue + minutes)))
+        grid
+
+
+timeEntryToBins : Time.Posix -> Time.Posix -> Time.Zone -> Grid -> Grid
+timeEntryToBins start stop timezone grid =
+    if Time.posixToMillis start >= Time.posixToMillis stop then
         grid
 
     else
         let
+            startHour =
+                Time.toHour timezone start
+
+            startMinutes =
+                Time.toMinute timezone start
+
+            startSeconds =
+                Time.toSecond timezone start
+
+            startMilis =
+                Time.toMillis timezone start
+
+            stopHour =
+                Time.toHour timezone stop
+
+            stopMinutes =
+                Time.toMinute timezone stop
+
+            -- Position of the current bin
             y =
-                start.hours
+                startHour
 
             x =
-                start.minutes // 10
+                startMinutes // 10
 
-            binValue =
-                10 - modBy 10 start.minutes
+            minutesToNextBin =
+                10 - modBy 10 startMinutes
 
-            minutes =
-                start.minutes + binValue
+            secondInMillis =
+                1000
 
-            newStart =
-                { year = 0
-                , month = 0
-                , day = 0
-                , hours = start.hours + (minutes // 60)
-                , minutes = modBy 60 minutes
-                , seconds = start.seconds
-                }
+            minuteInMillis =
+                60 * secondInMillis
+
+            nextBinStartTime =
+                (Time.posixToMillis start + (minutesToNextBin * minuteInMillis))
+                    - (startSeconds * secondInMillis)
+                    - startMilis
         in
-        if
-            newStart.hours
-                > end.hours
-                || (newStart.hours == end.hours && newStart.minutes >= end.minutes)
-        then
-            Dict.update ( y, x ) (always (Just (end.minutes - start.minutes))) grid
+        if nextBinStartTime > Time.posixToMillis stop then
+            -- start and stop times are in the same bin
+            -- 16:32:20 -> 16:38:30
+            addMinutesToGrid x y grid (stopMinutes - startMinutes)
 
         else
-            timeEntryToBins newStart end (Dict.update ( y, x ) (always (Just binValue)) grid)
+            -- stop time is not in the same bin, continue to next bin
+            -- 16:32:20 -> 16:58:30
+            timeEntryToBins
+                (Time.millisToPosix nextBinStartTime)
+                stop
+                timezone
+                (addMinutesToGrid x y grid minutesToNextBin)
 
 
-populateGrid : TimeEntries -> Time.Posix -> Grid -> Grid
-populateGrid entries time grid =
+populateGrid : TimeEntries -> Time.Posix -> Time.Zone -> Grid -> Grid
+populateGrid entries time timezone grid =
     case entries of
         x :: xs ->
             let
-                currentTime : DateTime
-                currentTime =
-                    { year = 0
-                    , month = 0
-                    , day = Time.toDay Time.utc time
-                    , hours = Time.toHour Time.utc time + myTimeZone
-                    , minutes = Time.toMinute Time.utc time
-                    , seconds = Time.toSecond Time.utc time
-                    }
-
                 newGrid =
-                    timeEntryToBins x.start (Maybe.withDefault currentTime x.stop) grid
+                    timeEntryToBins x.start (Maybe.withDefault time x.stop) timezone grid
             in
-            populateGrid xs time newGrid
+            populateGrid xs time timezone newGrid
 
         [] ->
             grid
 
 
-viewGrid : TimeEntries -> Time.Posix -> Html msg
-viewGrid timeEntries time =
+viewGrid : TimeEntries -> Time.Posix -> Time.Zone -> Html msg
+viewGrid timeEntries time timezone =
     let
         hours =
             List.range 6 22
@@ -102,7 +124,7 @@ viewGrid timeEntries time =
             keys
                 |> List.map (\key -> ( key, 0 ))
                 |> Dict.fromList
-                |> populateGrid timeEntries time
+                |> populateGrid timeEntries time timezone
 
         textLabel =
             \y x label ->
@@ -183,9 +205,9 @@ viewGrid timeEntries time =
 
         clockTime : ClockTime
         clockTime =
-            { hours = Time.toHour Time.utc time + myTimeZone
-            , minutes = Time.toMinute Time.utc time
-            , seconds = Time.toSecond Time.utc time
+            { hours = Time.toHour timezone time
+            , minutes = Time.toMinute timezone time
+            , seconds = Time.toSecond timezone time
             }
 
         currentTimeIndicator =
@@ -207,9 +229,9 @@ viewGrid timeEntries time =
                 |> Time.millisToPosix
 
         endClockTime =
-            { hours = Time.toHour Time.utc endTime + myTimeZone
-            , minutes = Time.toMinute Time.utc endTime
-            , seconds = Time.toSecond Time.utc endTime
+            { hours = Time.toHour timezone endTime
+            , minutes = Time.toMinute timezone endTime
+            , seconds = Time.toSecond timezone endTime
             }
 
         stopTimeIndicator =

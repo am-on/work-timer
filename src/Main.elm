@@ -23,11 +23,13 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Http
+import Iso8601
 import Json.Decode
     exposing
         ( Decoder
         , andThen
         , at
+        , fail
         , field
         , int
         , list
@@ -38,17 +40,16 @@ import Json.Decode
         )
 import Json.Encode
 import MonthView exposing (viewMonth)
+import Task
 import Time
 import TimeEntry
     exposing
         ( ClockTime
-        , DateTime
         , TimeEntries
         , TimeEntry
         , getEntryDuration
         , getTodoTime
         , getWorkedTime
-        , myTimeZone
         )
 import TimeHelpers
     exposing
@@ -56,6 +57,7 @@ import TimeHelpers
         , todoTime
         , viewClockTime
         , viewShortClockTime
+        , viewShortPosixTime
         , viewWorkedTime
         )
 
@@ -112,6 +114,7 @@ type alias Model =
     , timeEntries : TimeEntries
     , monthTimeEntries : TimeEntries
     , time : Time.Posix
+    , timezone : Time.Zone
     , apiEndpoint : String
     , apiAuth : String
     , view : View
@@ -134,12 +137,18 @@ init flags =
             , timeEntries = []
             , monthTimeEntries = []
             , time = Time.millisToPosix flags.time
+            , timezone = Time.utc
             , apiEndpoint = flags.apiEndpoint
             , apiAuth = flags.apiAuth
             , view = DailyGrid
             }
     in
-    ( model, getTimeEntries model.apiEndpoint model.apiAuth model.time model.time )
+    ( model
+    , Cmd.batch
+        [ getTimeEntries model.apiEndpoint model.apiAuth model.time model.time model.timezone
+        , Task.perform AdjustTimeZone Time.here
+        ]
+    )
 
 
 
@@ -156,6 +165,7 @@ type Msg
     | StartedTimer (Result Http.Error TimeEntry)
     | StoppedTimer (Result Http.Error TimeEntry)
     | Tick Time.Posix
+    | AdjustTimeZone Time.Zone
     | ChangedView View
 
 
@@ -164,7 +174,7 @@ update msg model =
     case msg of
         Refresh ->
             ( { model | apiState = Loading, timeEntries = [] }
-            , getTimeEntries model.apiEndpoint model.apiAuth model.time model.time
+            , getTimeEntries model.apiEndpoint model.apiAuth model.time model.time model.timezone
             )
 
         StartTimer ->
@@ -175,11 +185,16 @@ update msg model =
 
         RefreshAPI _ ->
             ( model
-            , getTimeEntries model.apiEndpoint model.apiAuth model.time model.time
+            , getTimeEntries model.apiEndpoint model.apiAuth model.time model.time model.timezone
             )
 
         Tick time ->
             ( { model | time = time }, Cmd.none )
+
+        AdjustTimeZone newZone ->
+            ( { model | timezone = newZone }
+            , Cmd.none
+            )
 
         GotTimeEntries (Ok entries) ->
             let
@@ -215,7 +230,7 @@ update msg model =
             in
             ( newModel
             , Cmd.batch
-                [ getTimeEntries newModel.apiEndpoint newModel.apiAuth newModel.time newModel.time
+                [ getTimeEntries newModel.apiEndpoint newModel.apiAuth newModel.time newModel.time model.timezone
                 , favicon (timerStateString newModel.timerState)
                 ]
             )
@@ -230,7 +245,7 @@ update msg model =
             in
             ( newModel
             , Cmd.batch
-                [ getTimeEntries newModel.apiEndpoint newModel.apiAuth newModel.time newModel.time
+                [ getTimeEntries newModel.apiEndpoint newModel.apiAuth newModel.time newModel.time model.timezone
                 , favicon (timerStateString newModel.timerState)
                 ]
             )
@@ -240,7 +255,7 @@ update msg model =
 
         ChangedView MonthView ->
             ( { model | view = MonthView, apiState = LoadingContent }
-            , getMonthTimeEntries model.apiEndpoint model.apiAuth model.time
+            , getMonthTimeEntries model.apiEndpoint model.apiAuth model.time model.timezone
             )
 
         ChangedView newView ->
@@ -277,7 +292,7 @@ view model =
             div []
                 [ text "I could not get data. "
                 , button [ onClick Refresh ] [ text "Try Again!" ]
-                , p [] [ text (isoDate model.time) ]
+                , p [] [ text (isoDate model.time model.timezone) ]
                 ]
 
         Loading ->
@@ -377,7 +392,7 @@ viewContent model =
     case model.view of
         DailyGrid ->
             section []
-                [ div [ class "container mx-auto" ] [ viewGrid model.timeEntries model.time ]
+                [ div [ class "container mx-auto" ] [ viewGrid model.timeEntries model.time model.timezone ]
                 ]
 
         DailyList ->
@@ -388,7 +403,7 @@ viewContent model =
                             [ table [ class "table" ]
                                 [ tbody []
                                     (List.map
-                                        (\entry -> viewEntry entry model.time)
+                                        (\entry -> viewEntry entry model.time model.timezone)
                                         model.timeEntries
                                         |> List.reverse
                                     )
@@ -405,20 +420,13 @@ viewContent model =
             div [] [ text "Not implemented" ]
 
 
-viewEntry : TimeEntry -> Time.Posix -> Html msg
-viewEntry entry time =
+viewEntry : TimeEntry -> Time.Posix -> Time.Zone -> Html msg
+viewEntry entry time timezone =
     let
         duration =
             getEntryDuration entry time
                 |> toClockTime
                 |> viewShortClockTime
-
-        currentTime : ClockTime
-        currentTime =
-            { hours = Time.toHour Time.utc time + myTimeZone
-            , minutes = Time.toMinute Time.utc time
-            , seconds = Time.toSecond Time.utc time
-            }
     in
     case entry.stop of
         Just stop ->
@@ -426,9 +434,9 @@ viewEntry entry time =
                 [ td [ class "p-4" ]
                     [ span [ class "text-grey-dark mr-10" ]
                         [ text
-                            (viewShortClockTime entry.start
+                            (viewShortPosixTime entry.start timezone
                                 ++ " - "
-                                ++ viewShortClockTime stop
+                                ++ viewShortPosixTime stop timezone
                             )
                         ]
                     , span [] [ text duration ]
@@ -440,9 +448,9 @@ viewEntry entry time =
                 [ td [ class "p-4" ]
                     [ span [ class "text-grey-dark mr-10" ]
                         [ text
-                            (viewShortClockTime entry.start
+                            (viewShortPosixTime entry.start timezone
                                 ++ " - "
-                                ++ viewShortClockTime currentTime
+                                ++ viewShortPosixTime time timezone
                             )
                         ]
                     , span [] [ text duration ]
@@ -450,21 +458,21 @@ viewEntry entry time =
                 ]
 
 
-isoDate : Time.Posix -> String
-isoDate time =
+isoDate : Time.Posix -> Time.Zone -> String
+isoDate time timezone =
     let
         year =
-            Time.toYear Time.utc time
+            Time.toYear timezone time
                 |> String.fromInt
 
         month =
-            Time.toMonth Time.utc time
+            Time.toMonth timezone time
                 |> DateUtils.monthToNumber1
                 |> String.fromInt
                 |> String.padLeft 2 '0'
 
         day =
-            Time.toDay Time.utc time
+            Time.toDay timezone time
                 |> String.fromInt
                 |> String.padLeft 2 '0'
     in
@@ -497,15 +505,15 @@ getTimerState timeEntries =
 -- HTTP
 
 
-getMonthTimeEntries : String -> String -> Time.Posix -> Cmd Msg
-getMonthTimeEntries apiEndpoint apiAuth time =
+getMonthTimeEntries : String -> String -> Time.Posix -> Time.Zone -> Cmd Msg
+getMonthTimeEntries apiEndpoint apiAuth time timezone =
     let
         url =
             apiEndpoint
                 ++ "time_entries?start_date="
-                ++ isoDate (DateCalendar.getFirstDayOfMonth Time.utc time)
+                ++ isoDate (DateCalendar.getFirstDayOfMonth timezone time) timezone
                 ++ "T00:00:00Z&end_date="
-                ++ isoDate time
+                ++ isoDate time timezone
                 ++ "T23:59:59Z"
     in
     Http.request
@@ -519,15 +527,15 @@ getMonthTimeEntries apiEndpoint apiAuth time =
         }
 
 
-getTimeEntries : String -> String -> Time.Posix -> Time.Posix -> Cmd Msg
-getTimeEntries apiEndpoint apiAuth start end =
+getTimeEntries : String -> String -> Time.Posix -> Time.Posix -> Time.Zone -> Cmd Msg
+getTimeEntries apiEndpoint apiAuth start end timezone =
     let
         url =
             apiEndpoint
                 ++ "time_entries?start_date="
-                ++ isoDate start
+                ++ isoDate start timezone
                 ++ "T00:00:00Z&end_date="
-                ++ isoDate end
+                ++ isoDate end timezone
                 ++ "T23:59:59Z"
     in
     Http.request
@@ -593,68 +601,18 @@ stopTimer model =
                 Cmd.none
 
 
-parseToggleDate : String -> DateTime
-parseToggleDate dateTimeString =
-    let
-        -- 2019-04-11T18:35:07+00:00
-        dateTime =
-            dateTimeString
-                |> String.replace "T" " "
-                |> String.replace "+" " "
-                |> String.split " "
-                |> List.take 2
-                |> Array.fromList
-
-        date =
-            Array.get 0 dateTime
-                |> Maybe.withDefault "0000-00-00"
-                |> String.split "-"
-                |> List.map (\entry -> Maybe.withDefault 0 (String.toInt entry))
-                |> Array.fromList
-
-        time =
-            Array.get 1 dateTime
-                |> Maybe.withDefault "00:00:00"
-                |> String.split ":"
-                |> List.map (\entry -> Maybe.withDefault 0 (String.toInt entry))
-                |> Array.fromList
-
-        result : DateTime
-        result =
-            { year =
-                Array.get 0 date
-                    |> Maybe.withDefault 0
-            , month =
-                Array.get 1 date
-                    |> Maybe.withDefault 0
-            , day =
-                Array.get 2 date
-                    |> Maybe.withDefault 0
-            , hours =
-                modBy 24
-                    (myTimeZone
-                        + (Array.get 0 time
-                            |> Maybe.withDefault 0
-                          )
-                    )
-            , minutes =
-                Array.get 1 time
-                    |> Maybe.withDefault 0
-            , seconds =
-                Array.get 2 time
-                    |> Maybe.withDefault 0
-            }
-    in
-    result
-
-
-decodeDateTime : String -> Decoder DateTime
+decodeDateTime : String -> Decoder Time.Posix
 decodeDateTime dateTime =
     let
         parsedDateTime =
-            parseToggleDate dateTime
+            Iso8601.toTime dateTime
     in
-    succeed parsedDateTime
+    case parsedDateTime of
+        Err error ->
+            fail ("Error parsing " ++ dateTime)
+
+        Ok time ->
+            succeed time
 
 
 singleTimeEntryDecoder : Decoder TimeEntry
