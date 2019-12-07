@@ -1,20 +1,13 @@
 module TimeEntry exposing
     ( ClockTime
-    , DateTime
     , TimeEntries
     , TimeEntry
     , getEntryDuration
     , getTodoTime
     , getWorkedTime
-    , myTimeZone
     )
 
 import Time
-
-
-myTimeZone : Int
-myTimeZone =
-    2
 
 
 requiredHours : Int
@@ -30,20 +23,10 @@ type alias ClockTime =
     }
 
 
-type alias DateTime =
-    { year : Int
-    , month : Int
-    , day : Int
-    , hours : Int
-    , minutes : Int
-    , seconds : Int
-    }
-
-
 type alias TimeEntry =
     { id : Int
-    , start : DateTime
-    , stop : Maybe DateTime
+    , start : Time.Posix
+    , stop : Maybe Time.Posix
     , duration : Int
     }
 

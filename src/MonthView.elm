@@ -5,13 +5,11 @@ import Time
 import TimeEntry
     exposing
         ( ClockTime
-        , DateTime
         , TimeEntries
         , TimeEntry
         , getEntryDuration
         , getTodoTime
         , getWorkedTime
-        , myTimeZone
         )
 import TimeHelpers
     exposing

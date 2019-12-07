@@ -16,6 +16,7 @@ const app = Elm.Main.init({
   flags: {
     apiEndpoint: apiEndpoint(),
     apiAuth: process.env.ELM_APP_API_AUTH,
+    timezone: process.env.ELM_APP_TIMEZONE,
     time: Date.now()
   }
 });
