@@ -32,7 +32,6 @@ import Json.Decode
         , fail
         , field
         , int
-        , list
         , map4
         , maybe
         , string
@@ -632,4 +631,4 @@ timeEntryDecoder =
 
 listOfRecordsDecoder : Decoder TimeEntries
 listOfRecordsDecoder =
-    list timeEntryDecoder
+    Json.Decode.list timeEntryDecoder
