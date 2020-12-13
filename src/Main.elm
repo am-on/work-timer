@@ -80,7 +80,9 @@ main =
 
 type TimerState
     = Stopped
+    | SwitchingToRunning
     | Running
+    | SwitchingToStopped
 
 
 timerStateString : TimerState -> String
@@ -89,8 +91,14 @@ timerStateString state =
         Stopped ->
             "Stopped"
 
+        SwitchingToRunning ->
+            "SwitchingToRunning"
+
         Running ->
             "Running"
+
+        SwitchingToStopped ->
+            "SwitchingToStopped"
 
 
 type ApiState
@@ -177,10 +185,10 @@ update msg model =
             )
 
         StartTimer ->
-            ( model, startTimer model )
+            ( { model | timerState = SwitchingToRunning }, startTimer model )
 
         StopTimer ->
-            ( model, stopTimer model )
+            ( { model | timerState = SwitchingToStopped }, stopTimer model )
 
         RefreshAPI _ ->
             ( model
@@ -338,9 +346,21 @@ viewTimerToggler model =
                     [ span [ class "icon" ] [ i [ class "fas fa-play-circle" ] [] ] ]
                 ]
 
+        SwitchingToRunning ->
+            div [ class "mt-5" ]
+                [ button [ class ("bg-grey-dark cursor-pointer" ++ style) ]
+                    [ span [ class "icon" ] [ i [ class "fas fa-play-circle" ] [] ] ]
+                ]
+
         Running ->
             div [ class "mt-5" ]
                 [ button [ onClick StopTimer, class ("bg-red hover:bg-red-dark" ++ style) ]
+                    [ span [ class "icon" ] [ i [ class "fas fa-pause-circle" ] [] ] ]
+                ]
+
+        SwitchingToStopped ->
+            div [ class "mt-5" ]
+                [ button [ class ("bg-grey-dark cursor-pointer" ++ style) ]
                     [ span [ class "icon" ] [ i [ class "fas fa-pause-circle" ] [] ] ]
                 ]
 
