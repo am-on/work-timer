@@ -2,23 +2,8 @@ module MonthView exposing (viewMonth)
 
 import Html exposing (..)
 import Time
-import TimeEntry
-    exposing
-        ( ClockTime
-        , TimeEntries
-        , TimeEntry
-        , getEntryDuration
-        , getTodoTime
-        , getWorkedTime
-        )
-import TimeHelpers
-    exposing
-        ( toClockTime
-        , todoTime
-        , viewClockTime
-        , viewShortClockTime
-        , viewWorkedTime
-        )
+import TimeEntry exposing (TimeEntries)
+import TimeHelpers exposing (viewWorkedTime)
 
 
 viewMonth : TimeEntries -> Time.Posix -> Html msg
