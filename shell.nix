@@ -9,5 +9,7 @@ stdenv.mkDerivation {
     elmPackages.create-elm-app
     elmPackages.elm-analyse
     elmPackages.elm-format
+
+    yarn
   ];
 }
