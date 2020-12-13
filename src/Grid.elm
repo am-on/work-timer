@@ -2,8 +2,6 @@ module Grid exposing (viewGrid)
 
 import Dict
 import Html exposing (..)
-import Html.Attributes exposing (..)
-import Html.Events exposing (..)
 import Svg
 import Svg.Attributes
 import Time
@@ -49,9 +47,6 @@ timeEntryToBins start stop timezone grid =
 
             startMilis =
                 Time.toMillis timezone start
-
-            stopHour =
-                Time.toHour timezone stop
 
             stopMinutes =
                 Time.toMinute timezone stop

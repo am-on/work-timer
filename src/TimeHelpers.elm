@@ -12,8 +12,6 @@ import TimeEntry
     exposing
         ( ClockTime
         , TimeEntries
-        , TimeEntry
-        , getEntryDuration
         , getTodoTime
         , getWorkedTime
         )

@@ -14,7 +14,6 @@ port module Main exposing
     , viewEntry
     )
 
-import Array
 import Browser
 import Derberos.Date.Calendar as DateCalendar
 import Derberos.Date.Utils as DateUtils
@@ -43,18 +42,14 @@ import Task
 import Time
 import TimeEntry
     exposing
-        ( ClockTime
-        , TimeEntries
+        ( TimeEntries
         , TimeEntry
         , getEntryDuration
-        , getTodoTime
-        , getWorkedTime
         )
 import TimeHelpers
     exposing
         ( toClockTime
         , todoTime
-        , viewClockTime
         , viewShortClockTime
         , viewShortPosixTime
         , viewWorkedTime
@@ -627,7 +622,7 @@ decodeDateTime dateTime =
             Iso8601.toTime dateTime
     in
     case parsedDateTime of
-        Err error ->
+        Err _ ->
             fail ("Error parsing " ++ dateTime)
 
         Ok time ->
