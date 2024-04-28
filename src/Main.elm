@@ -44,6 +44,7 @@ import TimeEntry
     exposing
         ( TimeEntries
         , TimeEntry
+        , TimerState(..)
         , getEntryDuration
         )
 import TimeHelpers
@@ -73,13 +74,6 @@ main =
 -- MODEL
 
 
-type TimerState
-    = Stopped
-    | SwitchingToRunning
-    | Running
-    | SwitchingToStopped
-
-
 timerStateString : TimerState -> String
 timerStateString state =
     case state of
@@ -92,7 +86,7 @@ timerStateString state =
         Running ->
             "Running"
 
-        SwitchingToStopped ->
+        SwitchingToStopped _ ->
             "SwitchingToStopped"
 
 
@@ -119,6 +113,7 @@ type alias Model =
     , timezone : Time.Zone
     , apiEndpoint : String
     , apiAuth : String
+    , apiWorkspaceId : Int
     , view : View
     }
 
@@ -126,6 +121,7 @@ type alias Model =
 type alias Flags =
     { apiEndpoint : String
     , apiAuth : String
+    , apiWorkspaceId : Int
     , time : Int
     }
 
@@ -133,6 +129,7 @@ type alias Flags =
 init : Flags -> ( Model, Cmd Msg )
 init flags =
     let
+        model : Model
         model =
             { apiState = Loading
             , timerState = Stopped
@@ -142,12 +139,13 @@ init flags =
             , timezone = Time.utc
             , apiEndpoint = flags.apiEndpoint
             , apiAuth = flags.apiAuth
+            , apiWorkspaceId = flags.apiWorkspaceId
             , view = DailyGrid
             }
     in
     ( model
     , Cmd.batch
-        [ getTimeEntries model.apiEndpoint model.apiAuth model.time model.time model.timezone
+        [ getTimeEntries model
         , Task.perform AdjustTimeZone Time.here
         ]
     )
@@ -176,18 +174,18 @@ update msg model =
     case msg of
         Refresh ->
             ( { model | apiState = Loading, timeEntries = [] }
-            , getTimeEntries model.apiEndpoint model.apiAuth model.time model.time model.timezone
+            , getTimeEntries model
             )
 
         StartTimer ->
             ( { model | timerState = SwitchingToRunning }, startTimer model )
 
         StopTimer ->
-            ( { model | timerState = SwitchingToStopped }, stopTimer model )
+            ( { model | timerState = SwitchingToStopped model.time }, stopTimer model )
 
         RefreshAPI _ ->
             ( model
-            , getTimeEntries model.apiEndpoint model.apiAuth model.time model.time model.timezone
+            , getTimeEntries model
             )
 
         Tick time ->
@@ -232,7 +230,7 @@ update msg model =
             in
             ( newModel
             , Cmd.batch
-                [ getTimeEntries newModel.apiEndpoint newModel.apiAuth newModel.time newModel.time model.timezone
+                [ getTimeEntries newModel
                 , favicon (timerStateString newModel.timerState)
                 ]
             )
@@ -247,7 +245,7 @@ update msg model =
             in
             ( newModel
             , Cmd.batch
-                [ getTimeEntries newModel.apiEndpoint newModel.apiAuth newModel.time newModel.time model.timezone
+                [ getTimeEntries newModel
                 , favicon (timerStateString newModel.timerState)
                 ]
             )
@@ -257,7 +255,7 @@ update msg model =
 
         ChangedView MonthView ->
             ( { model | view = MonthView, apiState = LoadingContent }
-            , getMonthTimeEntries model.apiEndpoint model.apiAuth model.time model.timezone
+            , getMonthTimeEntries model
             )
 
         ChangedView newView ->
@@ -320,9 +318,9 @@ viewHeader model =
     div [ class "bg-indigo-darker" ]
         [ div [ class "container mx-auto text-center pt-20" ]
             [ h1 [ class "text-white font-normal text-5xl pb-5" ]
-                [ text (todoTime model.timeEntries model.time) ]
+                [ text (todoTime model.timerState model.timeEntries model.time) ]
             , p [ class "text-white font-normal pb-5" ]
-                [ text ("(" ++ viewWorkedTime model.timeEntries model.time ++ ")") ]
+                [ text ("(" ++ viewWorkedTime model.timerState model.timeEntries model.time ++ ")") ]
             , viewTimerToggler model
             ]
         ]
@@ -353,7 +351,7 @@ viewTimerToggler model =
                     [ span [ class "icon" ] [ i [ class "fas fa-pause-circle" ] [] ] ]
                 ]
 
-        SwitchingToStopped ->
+        SwitchingToStopped _ ->
             div [ class "mt-5" ]
                 [ button [ class ("bg-grey-dark cursor-pointer" ++ style) ]
                     [ span [ class "icon" ] [ i [ class "fas fa-pause-circle" ] [] ] ]
@@ -406,7 +404,7 @@ viewContent model =
     case model.view of
         DailyGrid ->
             section []
-                [ div [ class "container mx-auto" ] [ viewGrid model.timeEntries model.time model.timezone ]
+                [ div [ class "container mx-auto" ] [ viewGrid model.timerState model.timeEntries model.time model.timezone ]
                 ]
 
         DailyList ->
@@ -417,9 +415,8 @@ viewContent model =
                             [ table [ class "table" ]
                                 [ tbody []
                                     (List.map
-                                        (\entry -> viewEntry entry model.time model.timezone)
+                                        (\entry -> viewEntry model.timerState entry model.time model.timezone)
                                         model.timeEntries
-                                        |> List.reverse
                                     )
                                 ]
                             ]
@@ -428,17 +425,17 @@ viewContent model =
                 ]
 
         MonthView ->
-            viewMonth model.monthTimeEntries model.time
+            viewMonth model.timerState model.monthTimeEntries model.time
 
         _ ->
             div [] [ text "Not implemented" ]
 
 
-viewEntry : TimeEntry -> Time.Posix -> Time.Zone -> Html msg
-viewEntry entry time timezone =
+viewEntry : TimerState -> TimeEntry -> Time.Posix -> Time.Zone -> Html msg
+viewEntry timerState entry time timezone =
     let
         duration =
-            getEntryDuration entry time
+            getEntryDuration timerState entry time
                 |> toClockTime
                 |> viewShortClockTime
     in
@@ -496,7 +493,6 @@ isoDate time timezone =
 getTimerState : TimeEntries -> TimerState
 getTimerState timeEntries =
     timeEntries
-        |> List.reverse
         |> List.head
         |> (\entry ->
                 case entry of
@@ -519,21 +515,30 @@ getTimerState timeEntries =
 -- HTTP
 
 
-getMonthTimeEntries : String -> String -> Time.Posix -> Time.Zone -> Cmd Msg
-getMonthTimeEntries apiEndpoint apiAuth time timezone =
+getMonthTimeEntries : Model -> Cmd Msg
+getMonthTimeEntries model =
     let
+        todayDate : String
+        todayDate =
+            isoDate model.time model.timezone
+
+        firstDayOfMonth : String
+        firstDayOfMonth =
+            isoDate (DateCalendar.getFirstDayOfMonth model.timezone model.time) model.timezone
+
+        url : String
         url =
-            apiEndpoint
-                ++ "time_entries?start_date="
-                ++ isoDate (DateCalendar.getFirstDayOfMonth timezone time) timezone
+            model.apiEndpoint
+                ++ "me/time_entries?start_date="
+                ++ firstDayOfMonth
                 ++ "T00:00:00Z&end_date="
-                ++ isoDate time timezone
+                ++ todayDate
                 ++ "T23:59:59Z"
     in
     Http.request
         { body = Http.emptyBody
         , method = "GET"
-        , headers = [ Http.header "Authorization" apiAuth ]
+        , headers = [ Http.header "Authorization" model.apiAuth ]
         , url = url
         , expect = Http.expectJson GotMonthTimeEntries listOfRecordsDecoder
         , timeout = Nothing
@@ -541,21 +546,26 @@ getMonthTimeEntries apiEndpoint apiAuth time timezone =
         }
 
 
-getTimeEntries : String -> String -> Time.Posix -> Time.Posix -> Time.Zone -> Cmd Msg
-getTimeEntries apiEndpoint apiAuth start end timezone =
+getTimeEntries : Model -> Cmd Msg
+getTimeEntries model =
     let
+        todayDate : String
+        todayDate =
+            isoDate model.time model.timezone
+
+        url : String
         url =
-            apiEndpoint
-                ++ "time_entries?start_date="
-                ++ isoDate start timezone
+            model.apiEndpoint
+                ++ "me/time_entries?start_date="
+                ++ todayDate
                 ++ "T00:00:00Z&end_date="
-                ++ isoDate end timezone
+                ++ todayDate
                 ++ "T23:59:59Z"
     in
     Http.request
         { body = Http.emptyBody
         , method = "GET"
-        , headers = [ Http.header "Authorization" apiAuth ]
+        , headers = [ Http.header "Authorization" model.apiAuth ]
         , url = url
         , expect = Http.expectJson GotTimeEntries listOfRecordsDecoder
         , timeout = Nothing
@@ -569,15 +579,18 @@ startTimer model =
         { body =
             Http.jsonBody <|
                 Json.Encode.object
-                    [ ( "time_entry"
-                      , Json.Encode.object
-                            [ ( "created_with", Json.Encode.string <| "elm" )
-                            ]
-                      )
+                    [ ( "created_with", Json.Encode.string <| "elm" )
+                    , ( "duration", Json.Encode.int -1 )
+                    , ( "start", Json.Encode.string <| Iso8601.fromTime model.time )
+                    , ( "workspace_id", Json.Encode.int model.apiWorkspaceId )
                     ]
         , method = "POST"
         , headers = [ Http.header "Authorization" model.apiAuth ]
-        , url = model.apiEndpoint ++ "time_entries/start"
+        , url =
+            model.apiEndpoint
+                ++ "workspaces/"
+                ++ String.fromInt model.apiWorkspaceId
+                ++ "/time_entries"
         , expect = Http.expectJson StartedTimer singleTimeEntryDecoder
         , timeout = Nothing
         , tracker = Nothing
@@ -588,7 +601,7 @@ stopTimer : Model -> Cmd Msg
 stopTimer model =
     let
         entry =
-            List.reverse model.timeEntries
+            model.timeEntries
                 |> List.head
     in
     case entry of
@@ -598,14 +611,20 @@ stopTimer model =
         Just timer ->
             if timer.duration < 0 then
                 Http.request
-                    { body = Http.emptyBody
+                    { body =
+                        Http.jsonBody <|
+                            Json.Encode.object
+                                [ ( "stop", Json.Encode.string <| Iso8601.fromTime model.time )
+                                , ( "workspace_id", Json.Encode.int model.apiWorkspaceId )
+                                ]
                     , method = "PUT"
                     , headers = [ Http.header "Authorization" model.apiAuth ]
                     , url =
                         model.apiEndpoint
-                            ++ "time_entries/"
+                            ++ "workspaces/"
+                            ++ String.fromInt model.apiWorkspaceId
+                            ++ "/time_entries/"
                             ++ String.fromInt timer.id
-                            ++ "/stop"
                     , expect = Http.expectJson StoppedTimer singleTimeEntryDecoder
                     , timeout = Nothing
                     , tracker = Nothing

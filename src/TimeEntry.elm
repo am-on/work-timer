@@ -2,6 +2,7 @@ module TimeEntry exposing
     ( ClockTime
     , TimeEntries
     , TimeEntry
+    , TimerState(..)
     , getEntryDuration
     , getTodoTime
     , getWorkedTime
@@ -14,6 +15,13 @@ requiredHours : Int
 requiredHours =
     -- 7.5 hours in seconds
     7 * 60 * 60 + 1 * 30 * 60
+
+
+type TimerState
+    = Stopped
+    | SwitchingToRunning
+    | Running
+    | SwitchingToStopped Time.Posix
 
 
 type alias ClockTime =
@@ -35,36 +43,46 @@ type alias TimeEntries =
     List TimeEntry
 
 
-getWorkedTime : TimeEntries -> Time.Posix -> Int
-getWorkedTime timeEntries time =
+getWorkedTime : TimerState -> TimeEntries -> Time.Posix -> Int
+getWorkedTime timerState timeEntries time =
     -- Get worked time in seconds
-    List.map (\entry -> getEntryDuration entry time) timeEntries
+    List.map (\entry -> getEntryDuration timerState entry time) timeEntries
         |> List.sum
 
 
-getTodoTime : TimeEntries -> Time.Posix -> Int
-getTodoTime timeEntries time =
+getTodoTime : TimerState -> TimeEntries -> Time.Posix -> Int
+getTodoTime timerState timeEntries time =
     let
         done =
-            getWorkedTime timeEntries time
+            getWorkedTime timerState timeEntries time
     in
     requiredHours - done
 
 
-getEntryDuration : TimeEntry -> Time.Posix -> Int
-getEntryDuration entry time =
+getEntryDuration : TimerState -> TimeEntry -> Time.Posix -> Int
+getEntryDuration timerState entry time =
     if entry.duration >= 0 then
         entry.duration
 
     else
         let
+            -- Get current time in seconds since epoch
+            currentTime : Int
             currentTime =
                 Time.posixToMillis time // 1000
+
+            entryEnd : Int
+            entryEnd =
+                case timerState of
+                    SwitchingToStopped stopTime ->
+                        Time.posixToMillis stopTime // 1000
+
+                    _ ->
+                        currentTime
+
+            -- Get entry start time in seconds since epoch
+            entryStart : Int
+            entryStart =
+                Time.posixToMillis entry.start // 1000
         in
-        -- If the time entry is currently running, the duration attribute
-        -- contains a negative value, denoting the start of the time entry in
-        -- seconds since epoch (Jan 1 1970). The correct duration can be
-        -- calculated as current_time + duration, where current_time is the
-        -- current time in seconds since epoch.
-        --https://github.com/toggl/toggl_api_docs/issues/16#issuecomment-17919490
-        currentTime + entry.duration
+        entryEnd - entryStart

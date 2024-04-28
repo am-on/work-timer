@@ -12,4 +12,7 @@ stdenv.mkDerivation {
 
     yarn
   ];
+  # BUG
+  # https://github.com/NixOS/nixpkgs/issues/209668
+  NODE_OPTIONS = "--openssl-legacy-provider";
 }
