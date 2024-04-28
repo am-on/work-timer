@@ -12,6 +12,7 @@ import TimeEntry
     exposing
         ( ClockTime
         , TimeEntries
+        , TimerState(..)
         , getTodoTime
         , getWorkedTime
         )
@@ -60,18 +61,18 @@ toClockTime seconds =
     clockTime
 
 
-viewWorkedTime : TimeEntries -> Time.Posix -> String
-viewWorkedTime timeEntries time =
-    getWorkedTime timeEntries time
+viewWorkedTime : TimerState -> TimeEntries -> Time.Posix -> String
+viewWorkedTime timerState timeEntries time =
+    getWorkedTime timerState timeEntries time
         |> toClockTime
         |> viewClockTime
 
 
-todoTime : TimeEntries -> Time.Posix -> String
-todoTime timeEntries time =
+todoTime : TimerState -> TimeEntries -> Time.Posix -> String
+todoTime timerState timeEntries time =
     let
         todo =
-            getTodoTime timeEntries time
+            getTodoTime timerState timeEntries time
 
         overtime =
             todo < 0

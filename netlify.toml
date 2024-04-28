@@ -1,7 +1,7 @@
 # Proxy Toggl api to avoid CORS
 [[redirects]]
   from = "/api/*"
-  to = "https://api.track.toggl.com/api/v8/:splat"
+  to = "https://api.track.toggl.com/api/v9/:splat"
   status = 200
 
 [[redirects]]

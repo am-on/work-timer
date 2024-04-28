@@ -9,6 +9,7 @@ import TimeEntry
     exposing
         ( ClockTime
         , TimeEntries
+        , TimerState
         , getTodoTime
         )
 
@@ -101,8 +102,8 @@ populateGrid entries time timezone grid =
             grid
 
 
-viewGrid : TimeEntries -> Time.Posix -> Time.Zone -> Html msg
-viewGrid timeEntries time timezone =
+viewGrid : TimerState -> TimeEntries -> Time.Posix -> Time.Zone -> Html msg
+viewGrid timerState timeEntries time timezone =
     let
         hours =
             List.range 6 22
@@ -220,7 +221,7 @@ viewGrid timeEntries time timezone =
 
         endTime =
             Time.posixToMillis time
-                + (getTodoTime timeEntries time * 1000)
+                + (getTodoTime timerState timeEntries time * 1000)
                 |> Time.millisToPosix
 
         endClockTime =
